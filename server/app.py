@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 
 from config import api, app, bcrypt, db
-from flask_restful import Resource
 from flask import request, session
-from sqlalchemy.exc import IntegrityError
+from flask_restful import Resource
 
 # Importing models
-from models import User, BookClub, Book, Assignment, Membership
+from models import Assignment, Book, BookClub, Membership, User
+from sqlalchemy.exc import IntegrityError
 
-app.secret_key = 'your_secret_key_here'
+app.secret_key = "your_secret_key_here"
+
 
 @app.route("/")
 def index():
@@ -21,6 +22,7 @@ if __name__ == "__main__":
 # ********
 # User
 # ********
+
 
 class SignUp(Resource):
     def post(self):
@@ -37,6 +39,7 @@ class SignUp(Resource):
             db.session.rollback()
             return {"errors": [str(e)]}, 422
 
+
 class LogIn(Resource):
     def post(self):
         data = request.get_json()
@@ -48,10 +51,13 @@ class LogIn(Resource):
             session["user_id"] = user.id
             return user.to_dict(), 200
         return {"errors": ["Invalid username or password"]}, 401
+
+
 class LogOut(Resource):
     def delete(self):
         session.pop("user_id", None)
         return "", 204
+
 
 class CheckSession(Resource):
     def get(self):
@@ -62,6 +68,7 @@ class CheckSession(Resource):
                 return user.to_dict(), 200
         return {"error": "User not found"}, 401
 
+
 class UpdateUser(Resource):
     def patch(self, user_id):
         user = User.query.get_or_404(user_id)
@@ -69,13 +76,15 @@ class UpdateUser(Resource):
         if "username" in data:
             user.username = data["username"]
         if "password" in data:
-            user.password_hash = data["password"]  
+            user.password_hash = data["password"]
         db.session.commit()
         return {"message": "User updated successfully"}, 200
-    
+
+
 # ********
 # BookClub
 # ********
+
 
 class BookClubList(Resource):
     def post(self):
@@ -91,7 +100,9 @@ class BookClubList(Resource):
         book_clubs = BookClub.query.all()
         return [club.to_dict() for club in book_clubs], 200
 
+
 class BookClubDetail(Resource):
+
     def get(self, club_id):
         club = BookClub.query.get_or_404(club_id)
         return club.to_dict(), 200
@@ -111,7 +122,8 @@ class BookClubDetail(Resource):
         db.session.delete(club)
         db.session.commit()
         return "", 204
-    
+
+
 # ********
 # Book
 # ********
@@ -122,7 +134,9 @@ class BookList(Resource):
         author = data.get("author")
         description = data.get("description")
         image_url = data.get("image_url")
-        new_book = Book(title=title, author=author, description=description, image_url=image_url)
+        new_book = Book(
+            title=title, author=author, description=description, image_url=image_url
+        )
         db.session.add(new_book)
         db.session.commit()
         return new_book.to_dict(), 201
@@ -130,6 +144,7 @@ class BookList(Resource):
     def get(self):
         books = Book.query.all()
         return [book.to_dict() for book in books], 200
+
 
 class BookDetail(Resource):
     def get(self, book_id):
@@ -150,9 +165,11 @@ class BookDetail(Resource):
         db.session.commit()
         return book.to_dict(), 200
 
+
 # ********
 # Membership
 # ********
+
 
 class MembershipList(Resource):
     def post(self):
@@ -165,8 +182,12 @@ class MembershipList(Resource):
         return new_membership.to_dict(), 201
 
     def get(self):
-        memberships = Membership.query.all()
-        return [membership.to_dict() for membership in memberships], 200
+        user = User.query.get(session.get("user_id"))
+        if user:
+
+            memberships = user.memberships
+            return [membership.to_dict() for membership in memberships], 200
+
 
 class MembershipDetail(Resource):
     def get(self, membership_id):
@@ -184,11 +205,21 @@ class MembershipDetail(Resource):
         return membership.to_dict(), 200
 
     def delete(self, membership_id):
-        membership = Membership.query.get_or_404(membership_id)
-        db.session.delete(membership)
-        db.session.commit()
-        return "", 204
-    
+        if session.get("user_id"):
+            book_club = BookClub.query.get_or_404(membership_id)
+            membership = Membership.query.filter_by(
+                user_id=session.get("user_id"), book_club_id=book_club.id
+            ).first()
+            if membership:
+                db.session.delete(membership)
+                db.session.commit()
+                return "", 204
+            else:
+                return "", 404
+        else:
+            return "", 401
+
+
 # ********
 # Assignment
 # ********
@@ -199,7 +230,7 @@ class AssignmentList(Resource):
         club_id = data.get("club_id")
         new_assignment = Assignment(book_id=book_id, book_club_id=club_id)
         db.session.add(new_assignment)
-        
+
         book = Book.query.get(book_id)
         club = BookClub.query.get(club_id)
         if book and club:
@@ -207,12 +238,13 @@ class AssignmentList(Resource):
             db.session.commit()
         else:
             db.session.rollback()
-        
+
         return new_assignment.to_dict(), 201
 
     def get(self):
         assignments = Assignment.query.all()
         return [assignment.to_dict() for assignment in assignments], 200
+
 
 class AssignmentDetail(Resource):
     def get(self, assignment_id):
@@ -234,22 +266,23 @@ class AssignmentDetail(Resource):
         db.session.delete(assignment)
         db.session.commit()
         return "", 204
-    
+
+
 # Adding resources to the API
-api.add_resource(SignUp, '/signup')
-api.add_resource(LogIn, '/login')
-api.add_resource(LogOut, '/logout')
-api.add_resource(CheckSession, '/check_session')
-api.add_resource(UpdateUser, '/users/<int:user_id>')
+api.add_resource(SignUp, "/signup")
+api.add_resource(LogIn, "/login")
+api.add_resource(LogOut, "/logout")
+api.add_resource(CheckSession, "/check_session")
+api.add_resource(UpdateUser, "/users/<int:user_id>")
 
-api.add_resource(BookClubList, '/book_clubs')
-api.add_resource(BookClubDetail, '/book_clubs/<int:club_id>')
+api.add_resource(BookClubList, "/book_clubs")
+api.add_resource(BookClubDetail, "/book_clubs/<int:club_id>")
 
-api.add_resource(BookList, '/books')
-api.add_resource(BookDetail, '/books/<int:book_id>')
+api.add_resource(BookList, "/books")
+api.add_resource(BookDetail, "/books/<int:book_id>")
 
-api.add_resource(MembershipList, '/memberships')
-api.add_resource(MembershipDetail, '/memberships/<int:membership_id>')
+api.add_resource(MembershipList, "/memberships")
+api.add_resource(MembershipDetail, "/memberships/<int:membership_id>")
 
-api.add_resource(AssignmentList, '/assignments')
-api.add_resource(AssignmentDetail, '/assignments/<int:assignment_id>')
+api.add_resource(AssignmentList, "/assignments")
+api.add_resource(AssignmentDetail, "/assignments/<int:assignment_id>")

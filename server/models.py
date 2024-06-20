@@ -1,5 +1,6 @@
 from config import api, app, bcrypt, db
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import validates
 from sqlalchemy_serializer import SerializerMixin
@@ -15,6 +16,8 @@ class User(db.Model, SerializerMixin):
     memberships = db.relationship(
         "Membership", back_populates="user", cascade="all, delete-orphan"
     )
+
+    book_clubs = association_proxy("memberships", "book_club")
 
     serialize_rules = ("-memberships.user", "-_password_hash")
 
@@ -82,6 +85,8 @@ class BookClub(db.Model, SerializerMixin):
         overlaps="assignments,book_clubs",
     )
 
+    users = association_proxy("memberships", "user")
+
     serialize_rules = (
         "-memberships.book_club",
         "-assignments.book_club",
@@ -91,7 +96,7 @@ class BookClub(db.Model, SerializerMixin):
 
     def __repr__(self):
         return f"<BookClub(id={self.id}, name='{self.name}', description='{self.description[:20]}')>"
-        
+
     def __init__(self, name, description):
         self.name = name
         self.description = description
@@ -120,16 +125,12 @@ class Book(db.Model, SerializerMixin):
     def __repr__(self):
         return f"<Book(id={self.id}, title='{self.title}', author='{self.author}')>"
 
-    
+
 class Assignment(db.Model, SerializerMixin):
     __tablename__ = "assignments"
     id = db.Column(db.Integer, primary_key=True)
-    book_id = db.Column(
-        db.Integer, db.ForeignKey("books.id"), nullable=False
-    )
-    book_club_id = db.Column(
-        db.Integer, db.ForeignKey("book_clubs.id"), nullable=False
-    )
+    book_id = db.Column(db.Integer, db.ForeignKey("books.id"), nullable=False)
+    book_club_id = db.Column(db.Integer, db.ForeignKey("book_clubs.id"), nullable=False)
 
     book = db.relationship(
         "Book", back_populates="assignments", overlaps="book_clubs,books"
