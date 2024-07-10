@@ -13,7 +13,7 @@ function NavBar() {
                     <NavLink to="/" className="nav-link">Home</NavLink>
                     <NavLink to="/book-club" className="nav-link">Book~Nook</NavLink>
                     <NavLink to="/profile" className="nav-link">Profile</NavLink>
-                    <NavLink to="/about" className="nav-link">About</NavLink> {/* Use NavLink for internal links */}
+                    <NavLink to="/about" className="nav-link">About</NavLink> 
                     <button onClick={logout} className="nav-link">Log Out</button>
                 </>
             ) : (
