@@ -164,6 +164,12 @@ class BookDetail(Resource):
             book.image_url = data["image_url"]
         db.session.commit()
         return book.to_dict(), 200
+    
+    # def delete(self, book_id):
+    #     book = Book.query.get_or_404(book_id)
+    #     db.session.delete(book)
+    #     db.session.commit()
+    #     return "", 204
 
 
 # ********
@@ -228,19 +234,25 @@ class AssignmentList(Resource):
         data = request.get_json()
         book_id = data.get("book_id")
         club_id = data.get("club_id")
-        new_assignment = Assignment(book_id=book_id, book_club_id=club_id)
-        db.session.add(new_assignment)
+        
+        if not book_id or not club_id:
+            return {"message": "Both book_id and club_id are required"}, 400
 
-        book = Book.query.get(book_id)
-        club = BookClub.query.get(club_id)
-        if book and club:
-            club.books.append(book)
+        try:
+            existing_assignment = Assignment.query.filter_by(book_id=book_id, book_club_id=club_id).first()
+            if existing_assignment:
+                return {"message": "Assignment already exists for this Book and Book Club"}, 400
+
+            new_assignment = Assignment(book_id=book_id, book_club_id=club_id)
+            db.session.add(new_assignment)
             db.session.commit()
-        else:
+
+            return new_assignment.to_dict(), 201
+
+        except Exception as e:
             db.session.rollback()
-
-        return new_assignment.to_dict(), 201
-
+            return {"message": "Internal Server Error"}, 500
+        
     def get(self):
         assignments = Assignment.query.all()
         return [assignment.to_dict() for assignment in assignments], 200
