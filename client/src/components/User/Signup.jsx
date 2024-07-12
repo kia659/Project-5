@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Redirect } from 'react-router-dom';
+import './Auth.css';
 
-function SignUp({ setUser, user }) {
+const SignUp = () => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
@@ -24,7 +25,7 @@ function SignUp({ setUser, user }) {
             }
 
             const data = await response.json();
-            setUser(data); 
+            // Handle successful signup logic if needed (e.g., set user context)
             setSignedUp(true);
         } catch (error) {
             console.error('Sign Up failed:', error.message);
@@ -36,35 +37,34 @@ function SignUp({ setUser, user }) {
         return <Redirect to="/login" />;
     }
 
-    if (user) {
-        return <Redirect to="/home" />;
-    }
-
     return (
-        <form onSubmit={handleSubmit}>
-            <h2>Sign Up</h2>
-            {error && <p style={{ color: 'red' }}>{error}</p>}
-            <div>
-                <label>Username:</label>
-                <input
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    required
-                />
-            </div>
-            <div>
-                <label>Password:</label>
-                <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                />
-            </div>
-            <button type="submit">Sign Up</button>
-        </form>
+        <div className="form-container">
+            <h2 className="form-header">Sign Up</h2>
+            <form onSubmit={handleSubmit}>
+                <div className="form-group">
+                    <label htmlFor="username">Username</label>
+                    <input
+                        type="text"
+                        id="username"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                    />
+                </div>
+                <div className="form-group">
+                    <label htmlFor="password">Password</label>
+                    <input
+                        type="password"
+                        id="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                    />
+                </div>
+                <button type="submit" className="form-button">Sign Up</button>
+                {error && <p className="error-message">{error}</p>} {/* Display error message if any */}
+            </form>
+            <a href="/login" className="form-link">Already have an account? Log in</a>
+        </div>
     );
-}
+};
 
 export default SignUp;

@@ -4,7 +4,7 @@ from flask_bcrypt import Bcrypt
 
 bcrypt = Bcrypt(app)
 
-bcrypt = Bcrypt(app)
+# bcrypt = Bcrypt(app)
 
 if __name__ == '__main__':
     with app.app_context():

@@ -132,6 +132,8 @@ class Assignment(db.Model, SerializerMixin):
     book_id = db.Column(db.Integer, db.ForeignKey("books.id"), nullable=False)
     book_club_id = db.Column(db.Integer, db.ForeignKey("book_clubs.id"), nullable=False)
 
+    __table_args__ = (db.UniqueConstraint('book_id', 'book_club_id', name='_book_club_assignment_uc'),)
+
     book = db.relationship(
         "Book", back_populates="assignments", overlaps="book_clubs,books"
     )

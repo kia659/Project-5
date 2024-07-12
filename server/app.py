@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 
-from config import api, app, bcrypt, db
+import requests, random
+from config import api, app, bcrypt, db, environ
 from flask import request, session
 from flask_restful import Resource
 
 # Importing models
 from models import Assignment, Book, BookClub, Membership, User
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import joinedload
 
 app.secret_key = "your_secret_key_here"
+api_key = environ.get("YOUR_API_KEY")
+
 
 
 @app.route("/")
@@ -164,6 +168,12 @@ class BookDetail(Resource):
             book.image_url = data["image_url"]
         db.session.commit()
         return book.to_dict(), 200
+    
+    # def delete(self, book_id):
+    #     book = Book.query.get_or_404(book_id)
+    #     db.session.delete(book)
+    #     db.session.commit()
+    #     return "", 204
 
 
 # ********
@@ -228,19 +238,25 @@ class AssignmentList(Resource):
         data = request.get_json()
         book_id = data.get("book_id")
         club_id = data.get("club_id")
-        new_assignment = Assignment(book_id=book_id, book_club_id=club_id)
-        db.session.add(new_assignment)
+        
+        if not book_id or not club_id:
+            return {"message": "Both book_id and club_id are required"}, 400
 
-        book = Book.query.get(book_id)
-        club = BookClub.query.get(club_id)
-        if book and club:
-            club.books.append(book)
+        try:
+            existing_assignment = Assignment.query.filter_by(book_id=book_id, book_club_id=club_id).first()
+            if existing_assignment:
+                return {"message": "Assignment already exists for this Book and Book Club"}, 400
+
+            new_assignment = Assignment(book_id=book_id, book_club_id=club_id)
+            db.session.add(new_assignment)
             db.session.commit()
-        else:
+
+            return new_assignment.to_dict(), 201
+
+        except Exception as e:
             db.session.rollback()
-
-        return new_assignment.to_dict(), 201
-
+            return {"message": "Internal Server Error"}, 500
+        
     def get(self):
         assignments = Assignment.query.all()
         return [assignment.to_dict() for assignment in assignments], 200
@@ -267,6 +283,73 @@ class AssignmentDetail(Resource):
         db.session.commit()
         return "", 204
 
+class RecommendedBooks(Resource):
+    def get(self, user_id):
+        try:
+            user = User.query.get(user_id)
+            if not user:
+                return {"error": "User not authenticated"}, 401
+
+            assignments = Assignment.query.options(joinedload(Assignment.book)).join(Membership, Membership.book_club_id == Assignment.book_club_id)\
+                .filter(Membership.user_id == user.id).all()
+
+            if not assignments:
+                return {"error": "User has no assigned books in any club"}, 400
+
+            genres = set()
+            book_name = ""
+            for assignment in assignments:
+                if assignment.book:
+                    genres.add(assignment.book.description)
+                    book_name = assignment.book.description
+
+            if not genres:
+                return {"error": "No genres found for assigned books"}, 400
+
+            url = f'https://www.googleapis.com/books/v1/volumes?q={book_name}&maxResults=38&key={api_key}'
+
+            response = requests.get(url)
+            response.raise_for_status()
+
+            data = response.json()
+
+            if 'items' not in data or len(data['items']) == 0:
+                return {"error": "No book data found in API response"}, 500
+            
+            random_book = random.choice(data['items'])
+            volume_info = random_book['volumeInfo']
+            title = volume_info.get('title', "")
+            authors = ', '.join(volume_info.get('authors', []))
+            description = volume_info.get('description', '')
+            image_links = volume_info.get('imageLinks', {})
+            small_thumbnail = image_links.get('smallThumbnail', '')
+            thumbnail = image_links.get('thumbnail', '')
+
+            # Check if the book already exists
+            existing_book = Book.query.filter_by(title=title, author=authors).first()
+
+            if not existing_book:
+                # Save the recommended book to the books table
+                recommended_book = Book(
+                    title=title,
+                    author=authors,
+                    description=description,
+                    image_url=thumbnail,
+                )
+
+                db.session.add(recommended_book)
+                db.session.commit()
+            else:
+                recommended_book = existing_book
+
+            return recommended_book.to_dict(), 201
+        
+        except requests.exceptions.RequestException as e:
+            return {"error": f"Request to Google Books API failed: {str(e)}"}, 500
+
+        except Exception as e:
+            db.session.rollback()
+            return {"error": f"Internal Server Error: {str(e)}"}, 500
 
 # Adding resources to the API
 api.add_resource(SignUp, "/signup")
@@ -286,3 +369,6 @@ api.add_resource(MembershipDetail, "/memberships/<int:membership_id>")
 
 api.add_resource(AssignmentList, "/assignments")
 api.add_resource(AssignmentDetail, "/assignments/<int:assignment_id>")
+
+api.add_resource(RecommendedBooks, "/recommended-books/<int:user_id>")
+
