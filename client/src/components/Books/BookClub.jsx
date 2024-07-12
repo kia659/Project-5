@@ -89,14 +89,12 @@ const BookClub = () => {
             return;
         }
     
-        // Check if the user is a member of the selected club
         const isMember = clubMembers[selectedClubId]?.some(member => member.id === user.id);
         if (!isMember) {
             alert("You must be a member of the selected book club to add a book.");
             return;
         }
     
-        // Check if the book is already assigned to the selected club
         const existingAssignment = assignments.find(a => a.book_id === bookId && a.book_club_id === selectedClubId);
         if (existingAssignment) {
             alert("This book is already assigned to this club.");

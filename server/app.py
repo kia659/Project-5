@@ -297,10 +297,10 @@ class RecommendedBooks(Resource):
                 return {"error": "User has no assigned books in any club"}, 400
 
             genres = set()
-            book_name = ()
+            book_name = ""
             for assignment in assignments:
                 if assignment.book:
-                    genres.add(assignment.book)
+                    genres.add(assignment.book.description)
                     book_name = assignment.book.description
 
             if not genres:
@@ -317,24 +317,39 @@ class RecommendedBooks(Resource):
                 return {"error": "No book data found in API response"}, 500
             
             random_book = random.choice(data['items'])
-            volume_info = random_book['volumeInfo']     
-            title = volume_info.get('title', '')       
-            authors = volume_info.get('authors', [])
+            volume_info = random_book['volumeInfo']
+            title = volume_info.get('title', "")
+            authors = ', '.join(volume_info.get('authors', []))
             description = volume_info.get('description', '')
             image_links = volume_info.get('imageLinks', {})
             small_thumbnail = image_links.get('smallThumbnail', '')
             thumbnail = image_links.get('thumbnail', '')
 
-            return {
-                "title": title,
-                "authors": authors,
-                "description": description,
-                "smallThumbnail": small_thumbnail,
-                "thumbnail": thumbnail
-            }
+            # Check if the book already exists
+            existing_book = Book.query.filter_by(title=title, author=authors).first()
+
+            if not existing_book:
+                # Save the recommended book to the books table
+                recommended_book = Book(
+                    title=title,
+                    author=authors,
+                    description=description,
+                    image_url=thumbnail,
+                )
+
+                db.session.add(recommended_book)
+                db.session.commit()
+            else:
+                recommended_book = existing_book
+
+            return recommended_book.to_dict(), 201
         
         except requests.exceptions.RequestException as e:
             return {"error": f"Request to Google Books API failed: {str(e)}"}, 500
+
+        except Exception as e:
+            db.session.rollback()
+            return {"error": f"Internal Server Error: {str(e)}"}, 500
 
 # Adding resources to the API
 api.add_resource(SignUp, "/signup")
